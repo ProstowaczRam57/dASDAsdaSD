@@ -73,3 +73,42 @@ def test_malformed_port_is_ignored():
 
 def test_empty_html_returns_no_links():
     assert discover_links("", BASE) == []
+
+
+def test_translated_copies_are_dropped_when_english_exists():
+    html = """
+    <a href="/rulemaking">Rulemaking</a>
+    <a href="/es/rulemaking">Reglamentación</a>
+    <a href="/zh/rulemaking">法规</a>
+    """
+
+    links = discover_links(html, BASE)
+
+    assert links == ["https://leginfo.legislature.ca.gov/rulemaking"]
+
+
+def test_translated_only_page_is_kept():
+    html = '<a href="/es/rulemaking">Reglamentación</a>'
+
+    links = discover_links(html, BASE)
+
+    assert links == ["https://leginfo.legislature.ca.gov/es/rulemaking"]
+
+
+def test_translated_copy_of_the_source_page_is_dropped():
+    html = '<a href="/es/rulemaking">Reglamentación</a>'
+
+    links = discover_links(html, "https://leginfo.legislature.ca.gov/rulemaking")
+
+    assert links == []
+
+
+def test_translated_copy_with_query_string_is_dropped():
+    html = """
+    <a href="/rulemaking?id=7">Rule</a>
+    <a href="/es/rulemaking?id=7">Regla</a>
+    """
+
+    links = discover_links(html, BASE)
+
+    assert links == ["https://leginfo.legislature.ca.gov/rulemaking?id=7"]

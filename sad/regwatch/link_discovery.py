@@ -104,6 +104,33 @@ TRACKING_PARAMS = {
 
 HTML_EXTENSIONS = (".html", ".htm", ".shtml", ".php", ".aspx", ".asp", ".jsp")
 
+# Locale prefixes used by US government sites for translated copies.
+# When the same page also exists at the default (English) URL, the translated
+# copy is skipped so it is not stored as a separate publication.
+LOCALE_SEGMENTS = {
+    "ar",
+    "bn",
+    "de",
+    "es",
+    "fa",
+    "fr",
+    "hi",
+    "hm",
+    "hmn",
+    "it",
+    "ja",
+    "ko",
+    "pl",
+    "pt",
+    "ru",
+    "so",
+    "tl",
+    "uk",
+    "ur",
+    "vi",
+    "zh",
+}
+
 
 def _host(url: str) -> str:
     return urlsplit(url).hostname or ""
@@ -226,6 +253,20 @@ def _priority_score(link: str, anchor_text: str) -> int:
     return score
 
 
+def _default_locale_variant(link: str) -> Optional[str]:
+    """Return the same URL without a leading locale segment (``/es/``)."""
+
+    parts = urlsplit(link)
+    segments = parts.path.split("/")
+
+    if len(segments) <= 2 or segments[1].lower() not in LOCALE_SEGMENTS:
+        return None
+
+    path = "/" + "/".join(segments[2:])
+
+    return urlunsplit((parts.scheme, parts.netloc, path, parts.query, ""))
+
+
 def discover_links(
     html: str,
     base_url: str,
@@ -262,6 +303,14 @@ def discover_links(
 
         anchor_text = anchor.get_text(" ", strip=True)
         scored.append((_priority_score(normalized, anchor_text), normalized))
+
+    candidates = {normalize_url(base_url)} | {link for _, link in scored}
+
+    scored = [
+        (score, link)
+        for score, link in scored
+        if _default_locale_variant(link) not in candidates
+    ]
 
     prioritized = [link for score, link in scored if score > 0]
     rest = [link for score, link in scored if score == 0]
