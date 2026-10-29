@@ -1,0 +1,100 @@
+app:
+
+  name: Regulatory Monitor
+  version: 1.0
+
+logging:
+
+  level: INFO
+  file: logs/regulatory_monitor.log
+
+database:
+
+  engine: sqlite
+  path: data/state.db
+
+crawler:
+
+  timeout_s: 30
+  max_retries: 3
+  verify_ssl: true
+  user_agent: >
+    RegulatoryMonitor/1.0
+    (+https://company.internal)
+
+storage:
+
+  snapshots_dir: data/snapshots
+  cache_dir: data/cache
+  reports_dir: data/reports
+
+monitoring:
+
+  lookback_days: 30
+
+  detect:
+    new_publications: true
+    modified_publications: true
+    removed_publications: true
+
+classification:
+
+  min_confidence: 0.60
+
+reporting:
+
+  generate_excel: true
+  generate_html: true
+
+  output_filename: regulatory_report
+
+  include_removed: true
+
+scoring:
+
+  action_weights:
+
+    enacted_law: 10
+    final_rule: 10
+
+    proposed_rule: 7
+
+    guidance: 5
+
+    hearing_event: 4
+
+    amendment: 3
+
+    scope_change: 6
+
+    substance_update: 8
+
+    postponement: 2
+
+  topic_weights:
+
+    pfas: 5
+
+    chemical_restrictions: 5
+
+    hazard_classification: 4
+
+    occupational_exposure_limits: 4
+
+    process_safety: 4
+
+    packaging: 3
+
+    epr: 3
+
+    air_emissions: 3
+
+    drinking_water: 3
+
+    wastewater: 3
+
+severity:
+
+  low_max: 5
+  medium_max: 10
+  high_max: 999

@@ -1,0 +1,578 @@
+# Lista monitorowanych źródeł.
+# type: rss   -> kanał RSS/Atom
+#       json  -> API JSON (items_path + fields)
+#       html  -> lista elementów na stronie (selektory CSS; "selektor@atrybut" pobiera atrybut)
+#       page  -> brak listy; śledzimy zmiany tekstu całej strony (diff)
+# state: kod stanu USA (np. CA) lub null dla źródeł federalnych / spoza USA.
+#
+# UWAGA: adresy i selektory CSS poniżej są punktem startowym – zweryfikuj je
+# na żywych stronach (struktura HTML się zmienia) i dostosuj do swoich źródeł.
+    # przy pierwszym runie źródła raportuj tylko publikacje z ostatnich N dni
+monitoring:
+
+  lookback_days: 30
+
+request_delay_s: 2.0   # przerwa między requestami (grzeczność wobec serwerów)
+
+# Regulatory Monitoring Sources
+# type:
+#   page  -> monitor page content + links + subpages
+#
+# state:
+#   US state code
+#
+# compare_mode:
+#   content_hash -> compare extracted content between runs
+default_tracking:
+  compare_mode: content_hash
+  extract_links: true
+  follow_subpages: true
+  max_subpages: 50
+
+sources:
+
+  # ==========================================================
+  # CALIFORNIA
+  # ==========================================================
+
+  - id: ca_legislation
+    name: California Legislative Information
+    jurisdiction: US-CA
+    state: CA
+    type: page
+    category: legislature
+    url: https://leginfo.legislature.ca.gov/
+    enabled: true
+
+  - id: ca_carb_rulemaking
+    name: California Air Resources Board Rulemaking
+    jurisdiction: US-CA
+    state: CA
+    type: page
+    category: air_emissions
+    url: https://ww2.arb.ca.gov/rulemaking
+    enabled: true
+
+  - id: ca_waterboard_regulations
+    name: State Water Resources Control Board Laws and Regulations
+    jurisdiction: US-CA
+    state: CA
+    type: page
+    category: water
+    url: https://www.waterboards.ca.gov/laws_regulations/
+    enabled: true
+
+  - id: ca_dtsc_scp
+    name: DTSC Safer Consumer Products
+    jurisdiction: US-CA
+    state: CA
+    type: page
+    category: chemical_restrictions
+    url: https://dtsc.ca.gov/scp/
+    enabled: true
+
+  - id: ca_calosha_rulemaking
+    name: Cal OSHA Proposed Regulations
+    jurisdiction: US-CA
+    state: CA
+    type: page
+    category: workplace_safety
+    url: https://www.dir.ca.gov/dosh/rulemaking/dosh_rulemaking_proposed.html
+    enabled: true
+
+  - id: ca_oal_notice_register
+    name: California Regulatory Notice Register
+    jurisdiction: US-CA
+    state: CA
+    type: page
+    category: regulatory_register
+    url: https://oal.ca.gov/publications/notice_register/
+    enabled: true
+
+  - id: ca_packaging_epr
+    name: CalRecycle Packaging EPR
+    jurisdiction: US-CA
+    state: CA
+    type: page
+    category: epr
+    url: https://calrecycle.ca.gov/packaging/packaging-epr/
+    enabled: true
+
+  - id: ca_prop65
+    name: OEHHA Proposition 65
+    jurisdiction: US-CA
+    state: CA
+    type: page
+    category: chemical_restrictions
+    url: https://oehha.ca.gov/proposition-65
+    enabled: true
+
+  # ==========================================================
+  # WASHINGTON
+  # ==========================================================
+
+  - id: wa_legislation
+    name: Washington State Legislature
+    jurisdiction: US-WA
+    state: WA
+    type: page
+    category: legislature
+    url: https://app.leg.wa.gov/billinfo/
+    enabled: true
+
+  - id: wa_ecology_rulemaking
+    name: Washington Department of Ecology Rulemaking
+    jurisdiction: US-WA
+    state: WA
+    type: page
+    category: environment
+    url: https://ecology.wa.gov/regulations-permits/laws-rules-rulemaking/rulemaking
+    enabled: true
+
+  - id: wa_dosh_rulemaking
+    name: DOSH Rulemaking Activity
+    jurisdiction: US-WA
+    state: WA
+    type: page
+    category: workplace_safety
+    url: https://www.lni.wa.gov/rulemaking-activity/
+    enabled: true
+
+  - id: wa_safer_products
+    name: Safer Products for Washington
+    jurisdiction: US-WA
+    state: WA
+    type: page
+    category: chemical_restrictions
+    url: https://ecology.wa.gov/regulations-permits/laws-rules-rulemaking/rulemaking/safer-products
+    enabled: true
+
+  # ==========================================================
+  # OREGON
+  # ==========================================================
+
+  - id: or_olis
+    name: Oregon Legislative Information System
+    jurisdiction: US-OR
+    state: OR
+    type: page
+    category: legislature
+    url: https://olis.oregonlegislature.gov/liz/Committees
+    enabled: true
+
+  - id: or_deq_rulemaking
+    name: Oregon DEQ Rulemaking
+    jurisdiction: US-OR
+    state: OR
+    type: page
+    category: environment
+    url: https://www.oregon.gov/deq/rulemaking/Pages/default.aspx
+    enabled: true
+
+  - id: or_osha_rules
+    name: Oregon OSHA Proposed Rules
+    jurisdiction: US-OR
+    state: OR
+    type: page
+    category: workplace_safety
+    url: https://osha.oregon.gov/rules/making/Pages/proposed.aspx
+    enabled: true
+
+  - id: or_recycling_modernization
+    name: Recycling Modernization Act
+    jurisdiction: US-OR
+    state: OR
+    type: page
+    category: epr
+    url: https://www.oregon.gov/deq/recycling/Pages/Modernizing-Oregons-Recycling-System.aspx
+    enabled: true
+
+  # ==========================================================
+  # NEW YORK
+  # ==========================================================
+
+  - id: ny_legislation
+    name: New York State Senate Legislation
+    jurisdiction: US-NY
+    state: NY
+    type: page
+    category: legislature
+    url: https://www.nysenate.gov/legislation
+    enabled: true
+
+  - id: ny_environmental_notice
+    name: Environmental Notice Bulletin
+    jurisdiction: US-NY
+    state: NY
+    type: page
+    category: environment
+    url: https://dec.ny.gov/news/environmental-notice-bulletin
+    enabled: true
+
+  - id: ny_state_register
+    name: New York State Register
+    jurisdiction: US-NY
+    state: NY
+    type: page
+    category: regulatory_register
+    url: https://dos.ny.gov/state-register
+    enabled: true
+
+  # ==========================================================
+  # MASSACHUSETTS
+  # ==========================================================
+
+  - id: ma_bills
+    name: Massachusetts Bill Search
+    jurisdiction: US-MA
+    state: MA
+    type: page
+    category: legislature
+    url: https://malegislature.gov/Bills/Search
+    enabled: true
+
+  - id: ma_massdep
+    name: Massachusetts DEP
+    jurisdiction: US-MA
+    state: MA
+    type: page
+    category: environment
+    url: https://www.mass.gov/orgs/massachusetts-department-of-environmental-protection
+    enabled: true
+
+  - id: ma_turi
+    name: Toxic Use Reduction Institute
+    jurisdiction: US-MA
+    state: MA
+    type: page
+    category: chemical_restrictions
+    url: https://www.turi.org/
+    enabled: true
+
+  # ==========================================================
+  # PENNSYLVANIA
+  # ==========================================================
+
+  - id: pa_legislation
+    name: Pennsylvania General Assembly
+    jurisdiction: US-PA
+    state: PA
+    type: page
+    category: legislature
+    url: https://www.legis.state.pa.us/cfdocs/legis/home/bills/index.cfm
+    enabled: true
+
+  - id: pa_dep_regulations
+    name: Pennsylvania DEP Regulations
+    jurisdiction: US-PA
+    state: PA
+    type: page
+    category: environment
+    url: https://www.pa.gov/agencies/dep/programs-and-services/regulations.html
+    enabled: true
+
+  - id: pa_bulletin
+    name: Pennsylvania Bulletin
+    jurisdiction: US-PA
+    state: PA
+    type: page
+    category: regulatory_register
+    url: https://www.pacodeandbulletin.gov/
+    enabled: true
+
+  # ==========================================================
+  # MINNESOTA
+  # ==========================================================
+
+  - id: mn_revisor
+    name: Minnesota Bills and Rules
+    jurisdiction: US-MN
+    state: MN
+    type: page
+    category: legislature
+    url: https://www.revisor.mn.gov/bills/
+    enabled: true
+
+  - id: mn_mpca_news
+    name: Minnesota PCA News and Rulemaking
+    jurisdiction: US-MN
+    state: MN
+    type: page
+    category: environment
+    url: https://www.pca.state.mn.us/news-and-stories
+    enabled: true
+
+  - id: mn_osha_rulemaking
+    name: Minnesota OSHA Rulemaking
+    jurisdiction: US-MN
+    state: MN
+    type: page
+    category: workplace_safety
+    url: https://www.dli.mn.gov/about-department/rulemaking/minnesota-osha-rulemaking
+    enabled: true
+
+  - id: mn_pfas_products
+    name: Minnesota PFAS in Products
+    jurisdiction: US-MN
+    state: MN
+    type: page
+    category: pfas
+    url: https://www.pca.state.mn.us/business-with-us/reporting-pfas-in-products
+    enabled: true
+
+  # ==========================================================
+  # NEW JERSEY
+  # ==========================================================
+
+  - id: nj_legislation
+    name: New Jersey Bill Search
+    jurisdiction: US-NJ
+    state: NJ
+    type: page
+    category: legislature
+    url: https://www.njleg.state.nj.us/bill-search
+    enabled: true
+
+  - id: njdep_rules
+    name: NJDEP Rules
+    jurisdiction: US-NJ
+    state: NJ
+    type: page
+    category: environment
+    url: https://dep.nj.gov/rules/
+    enabled: true
+
+  - id: nj_register
+    name: NJDEP Rulemaking Calendar
+    jurisdiction: US-NJ
+    state: NJ
+    type: page
+    category: regulatory_register
+    url: https://dep.nj.gov/rules/calendar/
+    enabled: true
+
+  # ==========================================================
+  # NORTH CAROLINA
+  # ==========================================================
+
+  - id: nc_legislation
+    name: North Carolina Legislation
+    jurisdiction: US-NC
+    state: NC
+    type: page
+    category: legislature
+    url: https://www.ncleg.gov/Legislation
+    enabled: true
+
+  - id: nc_deq_news
+    name: NC DEQ News
+    jurisdiction: US-NC
+    state: NC
+    type: page
+    category: environment
+    url: https://www.deq.nc.gov/news
+    enabled: true
+
+  - id: nc_osh_activity
+    name: NC OSH Standards Activity
+    jurisdiction: US-NC
+    state: NC
+    type: page
+    category: workplace_safety
+    url: https://www.labor.nc.gov/standards-information-and-activity
+    enabled: true
+
+  - id: nc_register
+    name: North Carolina Register
+    jurisdiction: US-NC
+    state: NC
+    type: page
+    category: regulatory_register
+    url: https://www.oah.nc.gov/rules-division/nc-register
+    enabled: true
+
+  # ==========================================================
+  # COLORADO
+  # ==========================================================
+
+  - id: co_legislation
+    name: Colorado Bill Search
+    jurisdiction: US-CO
+    state: CO
+    type: page
+    category: legislature
+    url: https://leg.colorado.gov/bill-search
+    enabled: true
+
+  - id: co_cdphe_news
+    name: Colorado CDPHE News
+    jurisdiction: US-CO
+    state: CO
+    type: page
+    category: environment
+    url: https://cdphe.colorado.gov/press-releases
+    enabled: true
+
+  - id: co_packaging_epr
+    name: Colorado Producer Responsibility Program
+    jurisdiction: US-CO
+    state: CO
+    type: page
+    category: epr
+    url: https://cdphe.colorado.gov/hm/producer-responsibility-program-for-statewide-recycling
+    enabled: true
+
+  # ==========================================================
+  # MAINE
+  # ==========================================================
+
+  - id: me_legislation
+    name: Maine Legislature Bills
+    jurisdiction: US-ME
+    state: ME
+    type: page
+    category: legislature
+    url: https://legislature.maine.gov/legislature/bills
+    enabled: true
+
+  - id: me_dep_rules
+    name: Maine DEP Rules
+    jurisdiction: US-ME
+    state: ME
+    type: page
+    category: environment
+    url: https://www.maine.gov/dep/rules/
+    enabled: true
+
+  - id: me_pfas_products
+    name: Maine PFAS in Products
+    jurisdiction: US-ME
+    state: ME
+    type: page
+    category: pfas
+    url: https://www.maine.gov/dep/spills/topics/pfas/PFAS-products/
+    enabled: true
+
+  # ==========================================================
+  # ILLINOIS
+  # ==========================================================
+
+  - id: il_legislation
+    name: Illinois General Assembly
+    jurisdiction: US-IL
+    state: IL
+    type: page
+    category: legislature
+    url: https://www.ilga.gov/legislation/
+    enabled: true
+
+  - id: il_epa_news
+    name: Illinois EPA News and Rules
+    jurisdiction: US-IL
+    state: IL
+    type: page
+    category: environment
+    url: https://epa.illinois.gov/news.html
+    enabled: true
+
+  - id: il_jcar
+    name: Illinois Register JCAR
+    jurisdiction: US-IL
+    state: IL
+    type: page
+    category: regulatory_register
+    url: https://www.ilga.gov/commission/jcar/
+    enabled: true
+  # ==========================================================
+  # MONTANA
+  # ==========================================================
+
+  - id: mt_legislation
+    name: Montana Legislature Bills
+    jurisdiction: US-MT
+    state: MT
+    type: page
+    category: legislature
+    url: https://leg.mt.gov/bills/
+    enabled: true
+
+  - id: mt_deq_news
+    name: Montana DEQ News and Permitting
+    jurisdiction: US-MT
+    state: MT
+    type: page
+    category: environment
+    url: https://deq.mt.gov/News
+    enabled: true
+
+  - id: mt_admin_register
+    name: Montana Administrative Rules and Register
+    jurisdiction: US-MT
+    state: MT
+    type: page
+    category: regulatory_register
+    url: https://sosmt.gov/arm/
+    enabled: true
+
+  # ==========================================================
+  # NEW MEXICO
+  # ==========================================================
+
+  - id: nm_legislation
+    name: New Mexico Legislature
+    jurisdiction: US-NM
+    state: NM
+    type: page
+    category: legislature
+    url: https://www.nmlegis.gov/Legislation/Legislation_List
+    enabled: true
+
+  - id: nm_environment_department
+    name: New Mexico Environment Department
+    jurisdiction: US-NM
+    state: NM
+    type: page
+    category: environment
+    url: https://www.env.nm.gov/
+    enabled: true
+
+  - id: nm_pfas_program
+    name: New Mexico PFAS Program
+    jurisdiction: US-NM
+    state: NM
+    type: page
+    category: pfas
+    url: https://www.env.nm.gov/opf/pfas/
+    enabled: true
+
+  # ==========================================================
+  # MARYLAND
+  # ==========================================================
+
+  - id: md_legislation
+    name: Maryland General Assembly Legislation
+    jurisdiction: US-MD
+    state: MD
+    type: page
+    category: legislature
+    url: https://mgaleg.maryland.gov/mgawebsite/Legislation/Index/plegislation
+    enabled: true
+
+  - id: md_environment_department
+    name: Maryland Department of the Environment
+    jurisdiction: US-MD
+    state: MD
+    type: page
+    category: environment
+    url: https://mde.maryland.gov/pages/index.aspx
+    enabled: true
+
+  - id: md_register
+    name: Maryland Register
+    jurisdiction: US-MD
+    state: MD
+    type: page
+    category: regulatory_register
+    url: https://dsd.maryland.gov/pages/mdregister.aspx
+    enabled: true
+

@@ -1,0 +1,152 @@
+# Taksonomia: domena -> temat -> słowa kluczowe (EN + PL)
+# Słowo z "*" na końcu = dopasowanie prefiksu
+
+domains:
+
+  environment:
+
+    air_emissions:
+      [air emission*, air pollut*, stack emission*, VOC, NOx, SOx, particulate, PM2.5, greenhouse gas, GHG, emission inventory, emisj*, jakość powietrza]
+
+    biodiversity_deforestation:
+      [biodiversity, endangered species, habitat, ecosystem, nature restoration, deforestation, forest risk commodity, biodiversity net gain, bioróżnorodn*, wylesian*]
+
+    carbon_markets:
+      [carbon market*, carbon credit*, offset*, emissions trading, ETS, cap and trade, voluntary carbon market, kredyt* węglow*, handel emisjami]
+
+    chemical_restrictions:
+      [chemical restriction*, restricted substance*, REACH, SVHC, substance ban, chemical compliance, ograniczeni* chemiczn*, substancj* niebezpieczn*]
+
+    drinking_water:
+      [drinking water, potable water, drinking water standard*, water supply, woda pitna]
+
+    fgas_ods:
+      [F-gas, fluorinated gas, HFC, HCFC, refrigerant, ozone depleting substance, ODS, substancj* zubożając* warstwę ozonową]
+
+    microplastics_plastic_pollution:
+      [microplastic*, plastic pollution, plastic pellet*, marine litter, zanieczyszczeni* plastikiem, mikroplastik*]
+
+    packaging:
+      [packaging, packaging waste, PPWR, recyclable packaging, opakowani*]
+
+    pfas:
+      [PFAS, perfluoroalkyl, polyfluoroalkyl, forever chemical*, substancj* PFAS]
+
+    pops:
+      [persistent organic pollutant*, POPs, trwałe zanieczyszczeni* organiczne]
+
+    remediation:
+      [remediation, contaminated land, site cleanup, brownfield, Superfund, rekultywacj*, remediacj*]
+
+    soil_land_use:
+      [soil protection, land use, land development, contaminated soil, gleba, użytkowanie gruntów]
+
+    stormwater:
+      [stormwater, runoff, drainage permit, deszczówka, wody opadowe]
+
+    waste_management:
+      [waste management, hazardous waste, landfill, recycling, circular economy, odpad*, recykling]
+
+    wastewater:
+      [wastewater, sewer discharge, effluent, industrial wastewater, ścieki]
+
+    water_efficiency:
+      [water efficiency, water conservation, water reuse, water reduction, oszczędność wody]
+
+
+  health:
+
+    occupational_exposure_limits:
+      [occupational exposure limit, OEL, workplace exposure, TLV, PEL, limit narażenia zawodowego]
+
+    radiation:
+      [radiation safety, ionizing radiation, radioactive material, promieniowanie]
+
+    heat_stress:
+      [heat stress, heat illness, thermal stress, stress cieplny]
+
+
+  safety:
+
+    dangerous_goods:
+      [dangerous goods, hazardous material transport, ADR, IMDG, IATA DGR, towary niebezpieczne]
+
+    driver_safety:
+      [driver safety, vehicle safety, fleet safety, transport safety, bezpieczeństwo kierowców]
+
+    ergonomics:
+      [ergonomic*, musculoskeletal disorder, MSD, workstation, ergonomi*]
+
+    fire_safety_emergency_response:
+      [fire safety, fire protection, emergency response, evacuation, firefighting, bezpieczeństwo pożarowe]
+
+    hazard_classification:
+      [hazard classification, CLP, GHS classification, klasyfikacja zagrożeń]
+
+    labeling_sds:
+      [safety data sheet, SDS, MSDS, product label*, hazard label*, karta charakterystyki, oznakowanie]
+
+    machinery_safety:
+      [machine safety, machinery regulation, guarding, lockout tagout, bezpieczeństwo maszyn]
+
+    process_safety:
+      [process safety, major accident, explosion, Seveso, hazard analysis, bezpieczeństwo procesowe]
+
+    safety_training:
+      [safety training, worker training, competency requirement, szkoleni* BHP]
+
+    workplace_harassment:
+      [workplace harassment, bullying, discrimination, psychosocial risk, mobbing]
+
+
+  sustainability:
+
+    amr_pie:
+      [air monitoring report, pollution inventory, emissions reporting, environmental reporting]
+
+    energy_efficiency:
+      [energy efficiency, energy performance, energy audit, efektywność energetyczna]
+
+    epr:
+      [extended producer responsibility, EPR, producer responsibility, odpowiedzialność producenta]
+
+    esg_reporting_due_diligence:
+      [ESG, CSRD, ESRS, sustainability reporting, due diligence, supply chain due diligence, raportowanie ESG]
+
+    greenwashing:
+      [greenwashing, environmental claim*, sustainability claim*, green claim*]
+
+    product_stewardship:
+      [product stewardship, lifecycle management, product compliance, odpowiedzialność produktowa]
+
+    renewable_energy_decarbonization:
+      [renewable energy, solar, wind, hydrogen, net zero, decarboni*, energy transition, odnawialn*, dekarbonizac*]
+
+
+# Typ działania regulacyjnego (pierwsze dopasowanie wygrywa)
+
+action_types:
+
+  enacted_law:
+    [enacted, enters into force, effective date, adopted law, enacted regulation, obowiązuje, wchodzi w życie]
+
+  proposed_rule:
+    [proposed rule, draft regulation, consultation, public comment, call for feedback, NPRM, projekt, konsultacj*]
+
+  guidance:
+    [guidance, FAQ, interpretation, implementation notice, technical notice, guideline*, wytyczn*]
+
+  scope_change:
+    [scope change, threshold, exemption, reporting requirement, monitoring requirement, permit requirement, deadline extension, derogation, phase-in, phase-out]
+
+  substance_update:
+    [substance added, new restriction, classification update, exposure limit, concentration limit, PFAS restriction, hazard classification]
+
+  enforcement:
+    [enforcement, inspection, penalty, fine, settlement, citation, sanction, kar*, mandat*]
+
+  postponement:
+    [postponement, delayed implementation, extension, derogation, suspension, odroczenie]
+
+  amendment:
+    [amend*, revis*, update*, modification, nowelizacj*, zmiana]
