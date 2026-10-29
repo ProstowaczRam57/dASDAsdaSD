@@ -143,7 +143,7 @@ action_types:
     [substance added, new restriction, classification update, exposure limit, concentration limit, PFAS restriction, hazard classification]
 
   enforcement:
-    [enforcement, inspection, penalty, fine, settlement, citation, sanction, kar*, mandat*]
+    [enforcement, inspection, penalty, penalties, fined, settlement, citation, sanction, kara, kary, mandat, grzywna]
 
   postponement:
     [postponement, delayed implementation, extension, derogation, suspension, odroczenie]
