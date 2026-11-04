@@ -2,6 +2,7 @@ import argparse
 import logging
 import sys
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Sequence
 
@@ -10,15 +11,15 @@ from regwatch.action_classifier import ActionClassifier
 from regwatch.config_loader import ConfigError, ConfigLoader
 from regwatch.date_filter import DateFilter
 from regwatch.db import Database
-from regwatch.fetcher import Fetcher, FetchError, fetcher_from_settings
+from regwatch.fetcher import FetchError, Fetcher, fetcher_from_settings
 from regwatch.html_parser import HtmlParser
 from regwatch.link_discovery import discover_links
 from regwatch.models import Publication, Source
 from regwatch.paths import PROJECT_ROOT, resolve_path
 from regwatch.publication_detector import PublicationDetector
 from regwatch.report_generator import ReportGenerator
-from regwatch.scoring import ImpactScorer
 from regwatch.state_manager import StateManager
+from regwatch.summarizer import ChangeSummarizer
 from regwatch.taxonomy_matcher import TaxonomyMatcher
 
 DEFAULT_MAX_LINKS = 50
@@ -35,6 +36,7 @@ class RunStats:
     updated: int = 0
     unchanged: int = 0
     skipped_old: int = 0
+    summarized: int = 0
     errors: int = 0
     reports: List[Path] = field(default_factory=list)
 
@@ -46,6 +48,7 @@ class RunStats:
             "updated": self.updated,
             "unchanged": self.unchanged,
             "skipped_old": self.skipped_old,
+            "summarized": self.summarized,
             "errors": self.errors,
         }
         data["reports"] = [str(path) for path in self.reports]
@@ -169,7 +172,7 @@ def _process_source(
     detector: PublicationDetector,
     matcher: TaxonomyMatcher,
     action_classifier: ActionClassifier,
-    scorer: ImpactScorer,
+    summarizer: ChangeSummarizer,
     date_filter: DateFilter,
     max_links: Optional[int],
     detect_flags: dict,
@@ -191,11 +194,11 @@ def _process_source(
         try:
             html = fetcher.get(link)
             title = parser.extract_title(html)
-            content = parser.extract_text(html)
+            body = parser.extract_text(html)
             publication_date = parser.extract_date(html)
 
-            if not content.strip():
-                logger.debug("Empty content, skipping %s", link)
+            if not body.strip():
+                logger.debug("Empty body, skipping %s", link)
                 continue
 
             if not date_filter.is_recent(publication_date):
@@ -203,8 +206,17 @@ def _process_source(
                 logger.debug("Old publication, skipping %s", link)
                 continue
 
-            previous_hash = state.get_hash(link)
-            change = detector.detect(content, previous_hash)
+            existing = state.get_state(link)
+
+            # Rows created before bodies were stored have a hash but no body:
+            # treat them as new so the body is captured this time.
+            previous_hash = (
+                existing["content_hash"]
+                if existing and existing.get("body")
+                else None
+            )
+
+            change = detector.detect(body, previous_hash)
 
             if change == "UNCHANGED":
                 stats.unchanged += 1
@@ -213,23 +225,6 @@ def _process_source(
                     state.mark_seen(link)
 
                 continue
-
-            domain, topic = matcher.classify(content)
-            action_type = action_classifier.classify(content)
-
-            publication = Publication(
-                source_id=source.id,
-                source_name=source.name,
-                title=title,
-                url=link,
-                content=content,
-                published_date=publication_date,
-                domain=domain or "",
-                topic=topic or "",
-                action_type=action_type,
-                change_type=change,
-            )
-            publication.impact_score = scorer.score(publication, change)
 
             if change == "NEW" and not detect_flags.get(
                 "new_publications", True
@@ -242,6 +237,59 @@ def _process_source(
             ):
                 logger.debug("Modified publication detection disabled, skipping")
                 continue
+
+            old_body = existing["body"] if existing else ""
+            summary = None
+
+            if change == "UPDATED" and not dry_run:
+                summary = summarizer.summarize(
+                    old_body,
+                    body,
+                    title,
+                    link,
+                )
+
+                if summarizer.requires_summary and summary is None:
+                    # Keep the old body: replacing it without a summary would
+                    # lose the only copy of the previous version.
+                    stats.errors += 1
+                    logger.error(
+                        "No summary produced for %s; keeping the previous "
+                        "body and retrying next run",
+                        link,
+                    )
+                    continue
+
+                if summary:
+                    stats.summarized += 1
+
+            domain, topic = matcher.classify(body)
+            action_type = action_classifier.classify(body)
+
+            publication = Publication(
+                source_id=source.id,
+                source_name=source.name,
+                title=title,
+                url=link,
+                body=body,
+                previous_body=(
+                    old_body if change == "UPDATED" else None
+                ),
+                previous_hash=(
+                    existing["content_hash"]
+                    if existing and change == "UPDATED"
+                    else None
+                ),
+                published_date=publication_date,
+                domain=domain or "",
+                topic=topic or "",
+                action_type=action_type,
+                change_type=change,
+                change_summary=summary,
+                summary_generated_at=(
+                    datetime.now(timezone.utc) if summary else None
+                ),
+            )
 
             if change == "NEW":
                 stats.new += 1
@@ -260,13 +308,16 @@ def _process_source(
                 state.save_publication(publication)
 
                 logger.info(
-                    "[%s] %s | %s | %s | score=%d",
+                    "[%s] %s | %s | %s | summary=%s",
                     change,
                     domain,
                     topic,
                     action_type,
-                    publication.impact_score,
+                    "yes" if summary else "no",
                 )
+
+                if summary:
+                    logger.info("    %s", summary.replace("\n", " "))
 
             logger.debug("    %s", title)
 
@@ -288,6 +339,7 @@ def run(
     generate_report: bool = True,
     verbose: bool = False,
     fetcher: Optional[Fetcher] = None,
+    summarizer: Optional[ChangeSummarizer] = None,
 ) -> RunStats:
     loader = ConfigLoader(config_dir)
     settings = loader.load_settings()
@@ -339,7 +391,6 @@ def run(
     matcher = TaxonomyMatcher(taxonomy)
     action_classifier = ActionClassifier(taxonomy)
     detector = PublicationDetector()
-    scorer = ImpactScorer(settings)
     date_filter = DateFilter(lookback_days)
 
     owned_fetcher = fetcher is None
@@ -347,6 +398,9 @@ def run(
         settings,
         request_delay_s=runtime.get("request_delay_s", 0.0),
     )
+
+    owned_summarizer = summarizer is None
+    summary_client = summarizer or ChangeSummarizer(settings)
 
     stats = RunStats()
     db: Optional[Database] = None
@@ -384,7 +438,7 @@ def run(
                     detector=detector,
                     matcher=matcher,
                     action_classifier=action_classifier,
-                    scorer=scorer,
+                    summarizer=summary_client,
                     date_filter=date_filter,
                     max_links=effective_max_links,
                     detect_flags=detect_flags,
@@ -424,15 +478,19 @@ def run(
         if owned_fetcher:
             client.close()
 
+        if owned_summarizer:
+            summary_client.close()
+
     logger.info(
         "Done: %d sources, %d links, %d new, %d updated, %d unchanged, "
-        "%d skipped, %d errors",
+        "%d skipped, %d summarized, %d errors",
         stats.sources_scanned,
         stats.links_seen,
         stats.new,
         stats.updated,
         stats.unchanged,
         stats.skipped_old,
+        stats.summarized,
         stats.errors,
     )
 

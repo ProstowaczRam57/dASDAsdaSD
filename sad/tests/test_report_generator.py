@@ -1,6 +1,7 @@
 import csv
 
-from regwatch.report_generator import ReportGenerator, severity_for_score
+from regwatch.report_generator import ReportGenerator
+
 
 SETTINGS = {
     "reporting": {
@@ -19,7 +20,8 @@ ROWS = [
         "domain": "environment",
         "topic": "pfas",
         "action_type": "final_rule",
-        "impact_score": 12,
+        "change_type": "UPDATED",
+        "change_summary": "- Limit changed from 10 to 5 ppm.",
         "published_date": "2026-10-20T10:00:00+00:00",
         "first_seen": "2026-10-21T10:00:00+00:00",
         "last_seen": "2026-10-21T10:00:00+00:00",
@@ -37,11 +39,14 @@ def test_generates_html_and_csv(tmp_path):
     html = (tmp_path / "regulatory_report.html").read_text(encoding="utf-8")
     assert "PFAS &lt;final&gt; rule" in html
     assert "&amp;b=2" in html
+    assert "Limit changed from 10 to 5 ppm." in html
 
     with open(tmp_path / "regulatory_report.csv", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
 
     assert rows[0]["topic"] == "pfas"
+    assert rows[0]["change_type"] == "UPDATED"
+    assert rows[0]["change_summary"].startswith("- Limit changed")
 
 
 def test_empty_report_is_valid(tmp_path):
@@ -52,22 +57,11 @@ def test_empty_report_is_valid(tmp_path):
     assert "No publications" in html
 
 
-def test_severity_bands():
-    assert severity_for_score(0) == "low"
-    assert severity_for_score(5) == "low"
-    assert severity_for_score(6) == "medium"
-    assert severity_for_score(11) == "high"
+def test_missing_summary_is_rendered_as_empty(tmp_path):
+    rows = [dict(ROWS[0], change_type="NEW", change_summary=None)]
 
+    ReportGenerator(SETTINGS, tmp_path).generate(rows)
 
-def test_severity_uses_configured_thresholds(tmp_path):
-    settings = {
-        "reporting": {"output_filename": "report"},
-        "severity": {"low_max": 1, "medium_max": 2},
-    }
-    rows = [dict(ROWS[0], impact_score=3)]
+    html = (tmp_path / "regulatory_report.html").read_text(encoding="utf-8")
 
-    ReportGenerator(settings, tmp_path).generate(rows)
-
-    html = (tmp_path / "report.html").read_text(encoding="utf-8")
-
-    assert 'class="high"' in html
+    assert 'class="summary"></td>' in html

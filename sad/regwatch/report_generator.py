@@ -16,9 +16,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     table {{ border-collapse: collapse; width: 100%; font-size: 0.9rem; }}
     th, td {{ border-bottom: 1px solid #e4e7eb; padding: 0.5rem; text-align: left; vertical-align: top; }}
     th {{ background: #f5f7fa; position: sticky; top: 0; }}
-    tr.high td.severity {{ color: #b42318; font-weight: 600; }}
-    tr.medium td.severity {{ color: #b54708; }}
-    tr.low td.severity {{ color: #027a48; }}
+    td.summary {{ white-space: pre-wrap; min-width: 18rem; }}
+    .change-updated {{ color: #b54708; font-weight: 600; }}
+    .change-new {{ color: #027a48; font-weight: 600; }}
     a {{ color: #1d4ed8; }}
   </style>
 </head>
@@ -33,9 +33,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <th>Domain</th>
         <th>Topic</th>
         <th>Action</th>
-        <th>Score</th>
+        <th>Change</th>
         <th>Published</th>
         <th>Last seen</th>
+        <th>AI summary</th>
       </tr>
     </thead>
     <tbody>
@@ -45,19 +46,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </body>
 </html>
 """
-
-def severity_for_score(
-    score: int,
-    low_max: int = 5,
-    medium_max: int = 10,
-) -> str:
-    if score <= low_max:
-        return "low"
-
-    if score <= medium_max:
-        return "medium"
-
-    return "high"
 
 
 def _format_date(value: str) -> str:
@@ -85,9 +73,6 @@ class ReportGenerator:
     def __init__(self, settings: dict, output_dir: Path):
         self.settings = settings
         self.output_dir = Path(output_dir)
-        severity = settings.get("severity") or {}
-        self.low_max = int(severity.get("low_max", 5))
-        self.medium_max = int(severity.get("medium_max", 10))
         self.filename = str(
             (settings.get("reporting") or {}).get(
                 "output_filename",
@@ -121,7 +106,8 @@ class ReportGenerator:
             "domain",
             "topic",
             "action_type",
-            "impact_score",
+            "change_type",
+            "change_summary",
             "published_date",
             "first_seen",
             "last_seen",
@@ -146,32 +132,34 @@ class ReportGenerator:
         table_rows = []
 
         for row in rows:
-            score = int(row.get("impact_score") or 0)
-            severity = severity_for_score(score, self.low_max, self.medium_max)
+            change = str(row.get("change_type") or "")
+            summary = str(row.get("change_summary") or "")
             url = html.escape(str(row.get("url") or ""), quote=True)
             title = html.escape(str(row.get("title") or ""))
 
             table_rows.append(
-                "      <tr class=\"{severity}\">\n"
+                "      <tr>\n"
                 "        <td>{source}</td>\n"
                 "        <td><a href=\"{url}\">{title}</a></td>\n"
                 "        <td>{domain}</td>\n"
                 "        <td>{topic}</td>\n"
                 "        <td>{action}</td>\n"
-                "        <td class=\"severity\">{score}</td>\n"
+                "        <td class=\"change-{change_class}\">{change}</td>\n"
                 "        <td>{published}</td>\n"
                 "        <td>{last_seen}</td>\n"
+                "        <td class=\"summary\">{summary}</td>\n"
                 "      </tr>".format(
-                    severity=severity,
                     source=html.escape(str(row.get("source_id") or "")),
                     url=url,
                     title=title,
                     domain=html.escape(str(row.get("domain") or "")),
                     topic=html.escape(str(row.get("topic") or "")),
                     action=html.escape(str(row.get("action_type") or "")),
-                    score=score,
+                    change=html.escape(change),
+                    change_class=html.escape(change.lower()),
                     published=_format_date(str(row.get("published_date") or "")),
                     last_seen=_format_date(str(row.get("last_seen") or "")),
+                    summary=html.escape(summary),
                 )
             )
 
@@ -180,7 +168,8 @@ class ReportGenerator:
                 title=html.escape(self.filename.replace("_", " ").title()),
                 generated=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
                 count=len(rows),
-                rows="\n".join(table_rows) or "      <tr><td colspan=\"8\">No publications</td></tr>",
+                rows="\n".join(table_rows)
+                or '      <tr><td colspan="9">No publications</td></tr>',
             ),
             encoding="utf-8",
         )

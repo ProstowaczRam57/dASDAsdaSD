@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
@@ -19,18 +19,25 @@ class Source:
 
 @dataclass
 class Publication:
-    """A single publication discovered on a source page."""
+    """A single publication discovered on a source page.
+
+    ``body`` is the current page text. On an update ``previous_body`` keeps
+    the text that was stored before, so both versions can be compared and
+    summarised.
+    """
 
     source_id: str
     source_name: str
     title: str
     url: str
-    content: str = ""
-    hash_value: str = ""
+    body: str = ""
+    content_hash: str = ""
+    previous_body: Optional[str] = None
+    previous_hash: Optional[str] = None
     published_date: Optional[datetime] = None
     action_type: str = ""
     domain: str = ""
     topic: str = ""
-    impact_score: int = 0
     change_type: str = ""
-    metadata: dict = field(default_factory=dict)
+    change_summary: Optional[str] = None
+    summary_generated_at: Optional[datetime] = None

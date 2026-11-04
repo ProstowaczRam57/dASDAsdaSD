@@ -1,4 +1,5 @@
 import sqlite3
+import zlib
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
@@ -18,13 +19,23 @@ CREATE TABLE IF NOT EXISTS publications (
 
     content_hash TEXT,
 
+    previous_hash TEXT,
+
+    body BLOB,
+
+    previous_body BLOB,
+
+    change_type TEXT,
+
+    change_summary TEXT,
+
+    summary_generated_at TEXT,
+
     domain TEXT,
 
     topic TEXT,
 
     action_type TEXT,
-
-    impact_score INTEGER DEFAULT 0,
 
     published_date TEXT,
 
@@ -55,17 +66,37 @@ CREATE INDEX IF NOT EXISTS idx_publications_domain
 # not alter existing databases, so they are added explicitly when missing.
 MIGRATIONS = {
     "published_date": "TEXT",
-    "impact_score": "INTEGER DEFAULT 0",
+    "body": "BLOB",
+    "previous_body": "BLOB",
+    "previous_hash": "TEXT",
+    "change_type": "TEXT",
+    "change_summary": "TEXT",
+    "summary_generated_at": "TEXT",
 }
 
-PUBLICATION_COLUMNS = (
-    "id, source_id, title, url, content_hash, domain, topic, "
-    "action_type, impact_score, published_date, first_seen, last_seen"
+PUBLICATION_LIST_COLUMNS = (
+    "id, source_id, title, url, content_hash, previous_hash, "
+    "change_type, change_summary, summary_generated_at, domain, topic, "
+    "action_type, published_date, first_seen, last_seen"
 )
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _pack(text: Optional[str]) -> Optional[bytes]:
+    if text is None:
+        return None
+
+    return zlib.compress(text.encode("utf-8"), level=9)
+
+
+def _unpack(blob: Optional[bytes]) -> str:
+    if not blob:
+        return ""
+
+    return zlib.decompress(blob).decode("utf-8")
 
 
 class Database:
@@ -89,19 +120,69 @@ class Database:
                     f"ALTER TABLE publications ADD COLUMN {column} {definition}"
                 )
 
+        # Scores were removed from the product; drop the old column when the
+        # SQLite version supports it (3.35+).
+        if "impact_score" in existing:
+            try:
+                self.conn.execute(
+                    "ALTER TABLE publications DROP COLUMN impact_score"
+                )
+            except sqlite3.OperationalError:
+                pass
+
     def get_hash(self, url: str) -> Optional[str]:
+        state = self.get_state(url)
+
+        return state["content_hash"] if state else None
+
+    def get_state(self, url: str) -> Optional[dict]:
         row = self.conn.execute(
-            "SELECT content_hash FROM publications WHERE url = ?",
+            """
+            SELECT content_hash, title, body
+            FROM publications
+            WHERE url = ?
+            """,
             (url,),
         ).fetchone()
 
-        return row["content_hash"] if row else None
+        if row is None:
+            return None
+
+        return {
+            "content_hash": row["content_hash"],
+            "title": row["title"],
+            "body": _unpack(row["body"]),
+        }
+
+    def get_publication(self, url: str) -> Optional[dict]:
+        row = self.conn.execute(
+            f"""
+            SELECT {PUBLICATION_LIST_COLUMNS}, body, previous_body
+            FROM publications
+            WHERE url = ?
+            """,
+            (url,),
+        ).fetchone()
+
+        if row is None:
+            return None
+
+        publication = dict(row)
+        publication["body"] = _unpack(row["body"])
+        publication["previous_body"] = _unpack(row["previous_body"])
+
+        return publication
 
     def save_publication(self, publication: Publication) -> None:
         now = _now()
         published = (
             to_utc(publication.published_date).isoformat()
             if publication.published_date
+            else None
+        )
+        summarised = (
+            to_utc(publication.summary_generated_at).isoformat()
+            if publication.summary_generated_at
             else None
         )
 
@@ -112,25 +193,35 @@ class Database:
                 title,
                 url,
                 content_hash,
+                previous_hash,
+                body,
+                previous_body,
+                change_type,
+                change_summary,
+                summary_generated_at,
                 domain,
                 topic,
                 action_type,
-                impact_score,
                 published_date,
                 first_seen,
                 last_seen
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 
             ON CONFLICT(url)
             DO UPDATE SET
                 source_id = excluded.source_id,
                 title = excluded.title,
                 content_hash = excluded.content_hash,
+                previous_hash = excluded.previous_hash,
+                body = excluded.body,
+                previous_body = excluded.previous_body,
+                change_type = excluded.change_type,
+                change_summary = excluded.change_summary,
+                summary_generated_at = excluded.summary_generated_at,
                 domain = excluded.domain,
                 topic = excluded.topic,
                 action_type = excluded.action_type,
-                impact_score = excluded.impact_score,
                 published_date = COALESCE(
                     excluded.published_date,
                     publications.published_date
@@ -141,11 +232,16 @@ class Database:
                 publication.source_id,
                 publication.title,
                 publication.url,
-                publication.hash_value,
+                publication.content_hash,
+                publication.previous_hash,
+                _pack(publication.body),
+                _pack(publication.previous_body),
+                publication.change_type,
+                publication.change_summary,
+                summarised,
                 publication.domain,
                 publication.topic,
                 publication.action_type,
-                publication.impact_score,
                 published,
                 now,
                 now,
@@ -187,10 +283,10 @@ class Database:
         return list(
             self.conn.execute(
                 f"""
-                SELECT {PUBLICATION_COLUMNS}
+                SELECT {PUBLICATION_LIST_COLUMNS}
                 FROM publications
                 WHERE last_seen >= ?
-                ORDER BY impact_score DESC, last_seen DESC
+                ORDER BY last_seen DESC
                 """,
                 (cutoff,),
             )

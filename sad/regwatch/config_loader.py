@@ -71,8 +71,7 @@ class ConfigLoader:
         settings.setdefault("logging", {})
         settings.setdefault("storage", {})
         settings.setdefault("reporting", {})
-        settings.setdefault("scoring", {})
-        settings.setdefault("severity", {})
+        settings.setdefault("ai", {})
 
         return settings
 

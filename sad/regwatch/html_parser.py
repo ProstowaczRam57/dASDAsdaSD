@@ -29,6 +29,7 @@ DATE_PATTERNS = (
 )
 
 BOILERPLATE_TAGS = (
+    "head",
     "script",
     "style",
     "noscript",

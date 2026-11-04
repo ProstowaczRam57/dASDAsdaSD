@@ -1,10 +1,11 @@
-"""End-to-end run with a fake fetcher (no network access)."""
+"""End-to-end run with fake fetcher/summarizer (no network access)."""
 
 import shutil
 from datetime import datetime, timedelta, timezone
 
 import pytest
 import yaml
+
 from regwatch.config_loader import DEFAULT_CONFIG_DIR
 from regwatch.db import Database
 from regwatch.main import run
@@ -43,6 +44,27 @@ class FakeFetcher:
             raise AssertionError(f"Unexpected URL fetched: {url}")
 
         return self.pages[url]
+
+    def close(self):
+        pass
+
+
+class FakeSummarizer:
+    def __init__(self, summary="- Rule text changed.", requires=True):
+        self.summary = summary
+        self.requires_summary = requires
+        self.calls = []
+
+    def summarize(self, old_body, new_body, title, url):
+        self.calls.append(
+            {
+                "old": old_body,
+                "new": new_body,
+                "title": title,
+                "url": url,
+            }
+        )
+        return self.summary
 
     def close(self):
         pass
@@ -96,54 +118,211 @@ def _pages(text="Final rule on PFAS restrictions", recent=None):
     }
 
 
-def test_run_saves_recent_publications(config_dir, tmp_path):
-    stats = run(config_dir=str(config_dir), fetcher=FakeFetcher(_pages()))
+def _database(tmp_path):
+    path = tmp_path / "data" / "test.db"
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    return Database(str(path))
+
+
+def _publication_row(tmp_path, url=ARTICLE_URL):
+    database = _database(tmp_path)
+    publication = database.get_publication(url)
+    database.close()
+
+    return publication
+
+
+def test_run_stores_bodies(config_dir, tmp_path):
+    stats = run(
+        config_dir=str(config_dir),
+        fetcher=FakeFetcher(_pages()),
+        summarizer=FakeSummarizer(),
+    )
 
     assert stats.sources_scanned == 1
     assert stats.new == 2  # article + about page
     assert stats.skipped_old == 1
     assert stats.errors == 0
 
-    database = Database(str(tmp_path / "data" / "test.db"))
-    assert database.count_publications() == 2
-    database.close()
+    publication = _publication_row(tmp_path)
+
+    assert publication["body"].startswith("Final rule on PFAS")
+    assert publication["previous_body"] == ""
+    assert publication["change_type"] == "NEW"
+    assert publication["change_summary"] is None
 
     assert (tmp_path / "data" / "reports" / "regulatory_report.html").exists()
 
 
 def test_second_run_detects_no_changes(config_dir):
-    run(config_dir=str(config_dir), fetcher=FakeFetcher(_pages()))
+    summarizer = FakeSummarizer()
 
-    stats = run(config_dir=str(config_dir), fetcher=FakeFetcher(_pages()))
+    run(
+        config_dir=str(config_dir),
+        fetcher=FakeFetcher(_pages()),
+        summarizer=summarizer,
+    )
+    stats = run(
+        config_dir=str(config_dir),
+        fetcher=FakeFetcher(_pages()),
+        summarizer=summarizer,
+    )
 
     assert stats.new == 0
     assert stats.updated == 0
     assert stats.unchanged == 2
+    assert summarizer.calls == []
 
 
-def test_modified_page_is_marked_updated(config_dir):
-    run(config_dir=str(config_dir), fetcher=FakeFetcher(_pages()))
+def test_modified_page_keeps_old_body_and_stores_summary(config_dir, tmp_path):
+    run(
+        config_dir=str(config_dir),
+        fetcher=FakeFetcher(_pages()),
+        summarizer=FakeSummarizer(),
+    )
+    original = _publication_row(tmp_path)
+
+    summarizer = FakeSummarizer("- PFAS limit changed from 10 to 5 ppm.")
+    stats = run(
+        config_dir=str(config_dir),
+        fetcher=FakeFetcher(_pages(text="Amended final rule on PFAS")),
+        summarizer=summarizer,
+    )
+
+    assert stats.updated == 1
+    assert stats.summarized == 1
+    assert stats.unchanged == 1
+    assert len(summarizer.calls) == 1
+
+    call = summarizer.calls[0]
+    assert call["old"] == original["body"]
+    assert call["new"].startswith("Amended final rule on PFAS")
+    assert call["url"] == ARTICLE_URL
+
+    updated = _publication_row(tmp_path)
+
+    assert updated["body"] == call["new"]
+    assert updated["previous_body"] == original["body"]
+    assert updated["previous_hash"] == original["content_hash"]
+    assert updated["change_summary"] == "- PFAS limit changed from 10 to 5 ppm."
+    assert updated["summary_generated_at"] is not None
+
+
+def test_failed_summary_keeps_previous_body(config_dir, tmp_path):
+    run(
+        config_dir=str(config_dir),
+        fetcher=FakeFetcher(_pages()),
+        summarizer=FakeSummarizer(),
+    )
+    original = _publication_row(tmp_path)
 
     stats = run(
         config_dir=str(config_dir),
         fetcher=FakeFetcher(_pages(text="Amended final rule on PFAS")),
+        summarizer=FakeSummarizer(summary=None),
+    )
+
+    assert stats.updated == 0
+    assert stats.errors == 1
+
+    unchanged = _publication_row(tmp_path)
+
+    assert unchanged["body"] == original["body"]
+    assert unchanged["content_hash"] == original["content_hash"]
+    assert unchanged["change_summary"] is None
+
+
+def test_update_without_ai_still_replaces_body(config_dir, tmp_path):
+    run(
+        config_dir=str(config_dir),
+        fetcher=FakeFetcher(_pages()),
+        summarizer=FakeSummarizer(),
+    )
+    original = _publication_row(tmp_path)
+
+    stats = run(
+        config_dir=str(config_dir),
+        fetcher=FakeFetcher(_pages(text="Amended final rule on PFAS")),
+        summarizer=FakeSummarizer(summary=None, requires=False),
     )
 
     assert stats.updated == 1
-    assert stats.unchanged == 1
+    assert stats.errors == 0
+
+    updated = _publication_row(tmp_path)
+
+    assert updated["body"] != original["body"]
+    assert updated["previous_body"] == original["body"]
+    assert updated["change_summary"] is None
+
+
+def test_dry_run_does_not_call_ai(config_dir):
+    summarizer = FakeSummarizer()
+
+    run(
+        config_dir=str(config_dir),
+        fetcher=FakeFetcher(_pages()),
+        summarizer=summarizer,
+        dry_run=True,
+        generate_report=False,
+    )
+    run(
+        config_dir=str(config_dir),
+        fetcher=FakeFetcher(_pages(text="Changed text")),
+        summarizer=summarizer,
+        dry_run=True,
+        generate_report=False,
+    )
+
+    assert summarizer.calls == []
+
+
+def test_legacy_row_without_body_is_revisited(config_dir, tmp_path):
+    database = _database(tmp_path)
+    database.conn.execute(
+        """
+        INSERT INTO publications (
+            source_id, title, url, content_hash, first_seen, last_seen
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "example",
+            "Old title",
+            ARTICLE_URL,
+            "stale-hash-without-body",
+            "2026-01-01T00:00:00+00:00",
+            "2026-01-01T00:00:00+00:00",
+        ),
+    )
+    database.conn.commit()
+    database.close()
+
+    stats = run(
+        config_dir=str(config_dir),
+        fetcher=FakeFetcher(_pages()),
+        summarizer=FakeSummarizer(),
+    )
+
+    publication = _publication_row(tmp_path)
+
+    assert stats.new == 2
+    assert publication["body"].startswith("Final rule on PFAS")
+    assert publication["content_hash"] != "stale-hash-without-body"
 
 
 def test_dry_run_does_not_write(config_dir, tmp_path):
     stats = run(
         config_dir=str(config_dir),
         fetcher=FakeFetcher(_pages()),
+        summarizer=FakeSummarizer(),
         dry_run=True,
         generate_report=False,
     )
 
     assert stats.new == 2
 
-    database = Database(str(tmp_path / "data" / "test.db"))
+    database = _database(tmp_path)
     assert database.count_publications() == 0
     database.close()
 
@@ -152,21 +331,9 @@ def test_source_filter_skips_other_sources(config_dir):
     stats = run(
         config_dir=str(config_dir),
         fetcher=FakeFetcher(_pages()),
+        summarizer=FakeSummarizer(),
         source_ids=["does-not-exist"],
     )
 
     assert stats.sources_scanned == 0
     assert stats.links_seen == 0
-
-
-def test_impact_score_uses_settings_weights(config_dir):
-    run(config_dir=str(config_dir), fetcher=FakeFetcher(_pages()))
-
-    database = Database(str(config_dir.parent / "data" / "test.db"))
-    row = database.conn.execute(
-        "SELECT impact_score FROM publications WHERE url = ?",
-        (ARTICLE_URL,),
-    ).fetchone()
-    database.close()
-
-    assert row["impact_score"] > 0

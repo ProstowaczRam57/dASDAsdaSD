@@ -1,7 +1,9 @@
 import sqlite3
+import zlib
 from datetime import datetime, timezone
 
 import pytest
+
 from regwatch.db import Database
 from regwatch.models import Publication
 
@@ -19,53 +21,84 @@ def _publication(**overrides):
         "source_name": "CARB",
         "title": "PFAS rule",
         "url": "https://example.com/rule/1",
-        "content": "Final rule text",
-        "hash_value": "hash-1",
+        "body": "Final rule text.\nSecond paragraph.",
+        "content_hash": "hash-1",
         "published_date": datetime(2026, 10, 20, tzinfo=timezone.utc),
         "domain": "environment",
         "topic": "pfas",
         "action_type": "final_rule",
-        "impact_score": 10,
+        "change_type": "NEW",
     }
     values.update(overrides)
     return Publication(**values)
 
 
-def test_save_and_get_hash(db):
+def test_save_and_get_state(db):
     db.save_publication(_publication())
 
+    state = db.get_state("https://example.com/rule/1")
+
+    assert state is not None
+    assert state["content_hash"] == "hash-1"
+    assert state["body"] == "Final rule text.\nSecond paragraph."
     assert db.get_hash("https://example.com/rule/1") == "hash-1"
-    assert db.get_hash("https://example.com/missing") is None
+    assert db.get_state("https://example.com/missing") is None
 
 
-def test_upsert_updates_content_but_keeps_first_seen(db):
+def test_body_is_stored_compressed(db):
     db.save_publication(_publication())
 
-    with db.conn:
-        first_seen = db.conn.execute(
-            "SELECT first_seen FROM publications WHERE url = ?",
-            ("https://example.com/rule/1",),
-        ).fetchone()["first_seen"]
+    row = db.conn.execute("SELECT body FROM publications").fetchone()
+
+    assert isinstance(row["body"], bytes)
+    assert zlib.decompress(row["body"]).decode("utf-8").startswith("Final rule")
+    assert b"Final rule" not in row["body"]
+
+
+def test_update_keeps_previous_body_and_hash(db):
+    db.save_publication(_publication())
 
     db.save_publication(
-        _publication(hash_value="hash-2", title="Updated title", impact_score=12)
+        _publication(
+            body="Amended rule text.",
+            content_hash="hash-2",
+            previous_body="Final rule text.\nSecond paragraph.",
+            previous_hash="hash-1",
+            change_type="UPDATED",
+            change_summary="- Limit changed from 10 to 5 ppm.",
+            title="Updated title",
+        )
     )
 
-    row = db.conn.execute(
-        "SELECT * FROM publications WHERE url = ?",
-        ("https://example.com/rule/1",),
-    ).fetchone()
+    publication = db.get_publication("https://example.com/rule/1")
 
     assert db.count_publications() == 1
-    assert row["content_hash"] == "hash-2"
-    assert row["title"] == "Updated title"
-    assert row["impact_score"] == 12
+    assert publication["body"] == "Amended rule text."
+    assert publication["previous_body"] == "Final rule text.\nSecond paragraph."
+    assert publication["previous_hash"] == "hash-1"
+    assert publication["content_hash"] == "hash-2"
+    assert publication["change_type"] == "UPDATED"
+    assert publication["change_summary"] == "- Limit changed from 10 to 5 ppm."
+    assert publication["title"] == "Updated title"
+
+
+def test_upsert_keeps_first_seen(db):
+    db.save_publication(_publication())
+
+    first_seen = db.conn.execute(
+        "SELECT first_seen FROM publications"
+    ).fetchone()["first_seen"]
+
+    db.save_publication(_publication(content_hash="hash-2", change_type="UPDATED"))
+
+    row = db.conn.execute("SELECT first_seen FROM publications").fetchone()
+
     assert row["first_seen"] == first_seen
 
 
 def test_upsert_keeps_previous_published_date_when_new_one_missing(db):
     db.save_publication(_publication())
-    db.save_publication(_publication(published_date=None, hash_value="hash-2"))
+    db.save_publication(_publication(published_date=None, content_hash="hash-2"))
 
     row = db.conn.execute(
         "SELECT published_date FROM publications"
@@ -138,4 +171,15 @@ def test_existing_database_is_migrated(tmp_path):
 
     database.close()
 
-    assert "published_date" in columns
+    for expected in (
+        "published_date",
+        "body",
+        "previous_body",
+        "previous_hash",
+        "change_type",
+        "change_summary",
+        "summary_generated_at",
+    ):
+        assert expected in columns
+
+    assert "impact_score" not in columns
